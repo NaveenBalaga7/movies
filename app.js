@@ -19,7 +19,7 @@ const initializeDbAndServer = async () => {
     });
     app.listen(3000, () =>
       console.log("Server Running at http://localhost:3000/")
-    );
+  });
   } catch (error) {
     console.log(`DB Error: ${error.message}`);
     process.exit(1);
@@ -28,47 +28,48 @@ const initializeDbAndServer = async () => {
 
 initializeDbAndServer();
 
-const convertMovieDbObjectToResponseObject = (dbObject) => {
+const convertMovieNameToPascalCase = (dbObject) => {
   return {
-    movieId: dbObject.movie_id,
-    directorId: dbObject.director_id,
     movieName: dbObject.movie_name,
-    leadActor: dbObject.lead_actor,
   };
 };
 
-const convertDirectorDbObjectToResponseObject = (dbObject) => {
-  return {
-    directorId: dbObject.director_id,
-    directorName: dbObject.director_name,
-  };
-};
-
-app.get("/movies", async (request, response) => {
-  const getMoviesQuery = `SELECT movie_name FROM movie;`;
-  const moviesArray = await database.all(getMoviesQuery);
+app.get("/movies/", async (request, response) => {
+  const getAllMovieQuery = `SELECT movie_name FROM movie;`;
+  const moviesArray = await database.all(getAllMovieQuery);
   response.send(
-    moviesArray.app((eachMovie) => ({ movieName: eachMovie.movie_name }))
+    moviesArray.app((movie_name) => ({ movieName: eachMovie.movie_name }))
   );
 });
 
-app.get("/movies/movieId", async (request, response) => {
+
+app.post("/movies/", async (request, response) => {
+  const { directorId, movieName, leadActor } = request.body;
+  const addMovieQuery = `INSERT INTO
+    movie (director_id,movie_name,lead_actor)
+    VALUES 
+    (${directorId},'${movieName}','${leadActor}');`;
+    const dbResponse = await db.run(addMovieQuery);
+    response.send("Movie Successfully Added");
+});
+
+const convertDbObjectToResponseObject = (dbObject) => {
+    return {
+        movieId : dbObject.movie_id,
+        directorId: dbObject.director_id,
+        movieName : dbObject.movie_name,
+        leadActor:dbObject.lead_actor,
+    };
+};
+
+app.get("/movies/movieId/", async (request, response) => {
   const { movieId } = request.params;
   const getMovieQuery = `
     SELECT * FROM movie
     WHERE
     movie_id = ${movieId};`;
   const movie = await database.get(getMovieQuery);
-  response.send(convertMovieDbObjectToResponseObject);
-});
-
-app.post("/movies", async (request, response) => {
-  const { directorId, movieName, leadActor } = request.body;
-  const postMovieQuery = `INSERT INTO
-    movie (director_id,movie_name,lead_actor)
-    VALUES 
-    (${directorId},'${movieName}','${leadActor}');`;
-  await database.run("Movie Successfully Added");
+  response.send(convertDbObjectToResponseObject(movie));
 });
 
 app.put("/movies/:movieId/", async (request, response) => {
@@ -92,25 +93,38 @@ app.delete("/movies/:movieId", async (request, response) => {
   response.send("Movie Removed");
 });
 
+const convertDirectorDetailsPascalCase = (dbObject) => {
+    return {
+        directorId: dbObject.director_id,
+        directorName: dbObject.director_name,
+    };
+};
+
 app.get("/directors/", async (request, response) => {
-  const getDirectorQuery = `
+  const getAllDirectorQuery = `
     SELECT * FROM director;`;
-  const directorsArray = await database.all(getDirectorQuery);
+  const moviesArray = await database.all(getAllDirectorQuery);
   response.send(
-    directorsArray.map((eachDirector) =>
-      convertDirectorDbObjectToResponseObject(eachDirector)
-    )
+    moviesArray.map((director) =>
+      convertDirectorDetailsPascalCase(director))
   );
 });
 
+const convertMovieNamePascalCase = (dbObject) => {
+    return {
+        movieName : dbObject.movie_name,
+    };
+};
+
 app.get("/directors/:directorId/movies/", async (request, response) => {
   const { directorId } = request.params;
-  const getDirectorMoviesQuery = `
+  const getDirectorMovieQuery = `
     SELECT movie_name
-    FROM movie WHERE director_id='${directorId}';`;
-  const moviesArray = await database.all(getDirectorMoviesQuery);
+    FROM director INNER JOIN movie 
+    ON director.director_id='${directorId}';`;
+  const movies = await database.all(getDirectorMovieQuery);
   response.send(
-    moviesArray.map((eachMovie) => ({ movieName: eachMovie.movie_name }))
+    movies.map((Movie_name) => convertMovieNamePascalCase(Movie_name))
   );
 });
 
